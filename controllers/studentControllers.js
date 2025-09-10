@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
+import { isValidObjectId } from '../utils/validateObjectId.js';
 
 const jwtSecret = process.env.JWT_SECRET;
 
@@ -26,6 +27,12 @@ export const registerStudent = async (req, res) => {
         if (existingStudent) {
             return res.status(400).json({ message: 'Student with this email or matric number already exists' });
         }
+         // Validate email address. this code checks whether the provided email 
+		//address is in a valid format by matching it against a regex pattern. 
+		const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+		if (!emailRegex.test(email)) {
+		  return res.status(400).json({ error: "Invalid email address!" });
+		}
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -59,12 +66,7 @@ export const loginStudent = async (req, res) => {
         if (!email || !password) {
             return res.status(400).json({ message: 'All fields are required' });
         }
-        // Validate email address. this code checks whether the provided email 
-		//address is in a valid format by matching it against a regex pattern. 
-		const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-		if (!emailRegex.test(email)) {
-		  return res.status(400).json({ error: "Invalid email address!" });
-		}
+       
         const student = await studentModel.findOne({ email }); // FIXED HERE
         if (!student) {
             return res.status(400).json({ message: 'Invalid email or password' });

@@ -1,11 +1,17 @@
 import attendanceModel from '../models/attendanceModel.js';
-import studentModel from '../models/studentModel.js';
 import courseModel from '../models/courseModel.js';
+import studentModel from '../models/studentModel.js';
+import { Parser } from 'json2csv'; // For CSV export
 import attendanceSessionModel from '../models/attendanceSessionModel.js';
+import { isValidObjectId } from '../utils/validateObjectId.js';
 
 export const startAttendanceSession = async (req, res) => {
     const { courseId } = req.body;
     const lecturerId = req.user.id; // assuming authentication middleware
+
+    if (!isValidObjectId(courseId)) {
+        return res.status(400).json({ message: 'Invalid course ID' });
+    }
 
     try {
         // Check if course exists and belongs to lecturer
@@ -37,6 +43,10 @@ export const validateEnrollment = async (req, res) => {
     const { studentId, courseId } = req.body;
     const lecturerId = req.user.id; // from authentication middleware
 
+    if (!isValidObjectId(courseId)) {
+        return res.status(400).json({ message: 'Invalid course ID' });
+    }
+
     try {
         // Check if student exists
         const student = await studentModel.findById(studentId);
@@ -65,6 +75,10 @@ export const validateEnrollment = async (req, res) => {
 export const markAttendance = async (req, res) => {
     const { studentId, courseId, sessionId } = req.body;
     const lecturerId = req.user.id; // from authentication middleware
+
+    if (!isValidObjectId(courseId)) {
+        return res.status(400).json({ message: 'Invalid course ID' });
+    }
 
     try {
         // Validate student, course, and session
@@ -119,6 +133,87 @@ export const closeAttendanceSession = async (req, res) => {
         await session.save();
 
         return res.status(200).json({ message: 'Attendance session closed', session });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// View attendance history for a course
+export const viewAttendanceHistory = async (req, res) => {
+    const { courseId } = req.params;
+    const lecturerId = req.user.id; // from auth middleware
+
+    if (!isValidObjectId(courseId)) {
+        return res.status(400).json({ message: 'Invalid course ID' });
+    }
+
+    try {
+        // Ensure course belongs to lecturer
+        const course = await courseModel.findOne({ _id: courseId, lecturer: lecturerId });
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found or not assigned to you' });
+        }
+
+        // Get attendance records for this course
+        const attendanceRecords = await attendanceModel.find({ course: courseId })
+            .populate('student', 'firstName lastName matricNumber email')
+            .populate('session', 'startedAt endedAt')
+            .sort({ timestamp: -1 });
+
+        return res.status(200).json({ attendance: attendanceRecords });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// Download attendance history as CSV
+export const downloadAttendanceHistory = async (req, res) => {
+    const { courseId } = req.params;
+    const lecturerId = req.user.id;
+
+    if (!isValidObjectId(courseId)) {
+        return res.status(400).json({ message: 'Invalid course ID' });
+    }
+
+    try {
+        // Ensure course belongs to lecturer
+        const course = await courseModel.findOne({ _id: courseId, lecturer: lecturerId });
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found or not assigned to you' });
+        }
+
+        // Get attendance records
+        const attendanceRecords = await attendanceModel.find({ course: courseId })
+            .populate('student', 'firstName lastName matricNumber email')
+            .populate('session', 'startedAt endedAt')
+            .sort({ timestamp: -1 });
+
+        // Function to sanitize data for CSV export
+        function sanitizeForCSV(value) {
+            if (typeof value === 'string' && /^[=+\-@]/.test(value)) {
+                return "'" + value;
+            }
+            return value;
+        }
+
+        // Prepare data for CSV
+        const data = attendanceRecords.map(record => ({
+            firstName: sanitizeForCSV(record.student.firstName),
+            lastName: sanitizeForCSV(record.student.lastName),
+            matricNumber: sanitizeForCSV(record.student.matricNumber),
+            email: sanitizeForCSV(record.student.email),
+            sessionStart: record.session?.startedAt,
+            sessionEnd: record.session?.endedAt,
+            markedBy: record.markedBy,
+            timestamp: record.timestamp
+        }));
+
+        const json2csv = new Parser();
+        const csv = json2csv.parse(data);
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment(`attendance_${course.code}.csv`);
+        return res.send(csv);
     } catch (error) {
         return res.status(500).json({ message: 'Server error' });
     }
