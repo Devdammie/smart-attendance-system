@@ -7,7 +7,6 @@ import attendanceModel from '../models/attendanceModel.js';
 import studentModel from '../models/studentModel.js';
 import courseModel from '../models/courseModel.js';
 import dotenv from 'dotenv';
-import { isValidObjectId } from '../utils/validateObjectId.js';
 dotenv.config();
 
 const jwt_secret = process.env.JWT_SECRET;

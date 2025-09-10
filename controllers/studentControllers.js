@@ -7,7 +7,6 @@ import jwt from 'jsonwebtoken';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
-import { isValidObjectId } from '../utils/validateObjectId.js';
 
 const jwtSecret = process.env.JWT_SECRET;
 
