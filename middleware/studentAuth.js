@@ -4,7 +4,7 @@ import studentModel from "../models/studentModel.js"
 import "dotenv/config";
 
 
-const jwt_secret = process.env.JWT_SECRET_KEY;
+const jwt_secret = process.env.JWT_SECRET;
 
 export const isStudent = async (req, res, next) => {
   try {
