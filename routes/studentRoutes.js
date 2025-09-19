@@ -1,17 +1,20 @@
 import express from 'express';
+import multer from 'multer';
 import {
   registerStudent,
   loginStudent,
   logoutStudent,
   uploadPassport,
   generateStudentQRCode,
-  downloadStudentQRCode
+  downloadStudentQRCode,
+  registerFace
 } from '../controllers/studentControllers.js';
 import upload from '../middleware/multer.js';
 import { isStudent } from '../middleware/studentAuth.js';
 import { ensureSelf } from '../middleware/ensureSelf.js';
 
 const router = express.Router();
+const faceUpload = multer({ storage: multer.memoryStorage() });
 
 router.post('/register', registerStudent);
 router.post('/login', loginStudent);
@@ -39,6 +42,14 @@ router.get(
   isStudent,
   ensureSelf,
   downloadStudentQRCode
+);
+
+router.post(
+  '/register-face/:studentId',
+  isStudent,
+  ensureSelf,
+  faceUpload.single('faceImage'),
+  registerFace
 );
 
 export default router;

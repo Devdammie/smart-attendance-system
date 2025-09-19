@@ -5,6 +5,7 @@ import lecturerModel from '../models/lecturerModel.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import QRCode from 'qrcode';
+import { image, faceapi } from '../utils/faceapi.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -177,4 +178,33 @@ export const downloadStudentQRCode = async (req, res) => {
     }
 };
 
+export const registerFace = async (req, res) => {
+    const { studentId } = req.params;
+    if (!req.file) {
+        return res.status(400).json({ message: 'No image file uploaded' });
+    }
 
+    try {
+        const student = await studentModel.findById(studentId);
+        if (!student) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
+        // Process the image from buffer
+        const img = await image(req.file.buffer);
+        const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+
+        if (!detections) {
+            return res.status(400).json({ message: 'No face detected in the image. Please upload a clear picture of your face.' });
+        }
+
+        // Save the face descriptor to the student model
+        student.faceDescriptor = Array.from(detections.descriptor);
+        await student.save();
+
+        return res.status(200).json({ message: 'Face registered successfully.' });
+    } catch (error) {
+        console.error('Face registration error:', error);
+        return res.status(500).json({ message: 'Server error during face registration.' });
+    }
+};

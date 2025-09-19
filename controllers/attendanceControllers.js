@@ -4,6 +4,7 @@ import studentModel from '../models/studentModel.js';
 import { Parser } from 'json2csv'; // For CSV export
 import attendanceSessionModel from '../models/attendanceSessionModel.js';
 import { isValidObjectId } from '../utils/validateObjectId.js';
+import { faceapi, image } from '../utils/faceapi.js';
 
 export const startAttendanceSession = async (req, res) => {
     const { courseId } = req.body;
@@ -107,6 +108,71 @@ export const markAttendance = async (req, res) => {
 
         return res.status(201).json({ message: 'Attendance marked successfully', attendance });
     } catch (error) {
+        return res.status(500).json({ message: 'Server error' });
+    }
+};
+
+export const markAttendanceWithFace = async (req, res) => {
+    const { studentId, courseId, sessionId } = req.body;
+    const lecturerId = req.user.id; // from authentication middleware
+
+    if (!req.file) {
+        return res.status(400).json({ message: 'No verification image provided.' });
+    }
+
+    if (!isValidObjectId(courseId) || !isValidObjectId(sessionId) || !isValidObjectId(studentId)) {
+        return res.status(400).json({ message: 'Invalid ID provided.' });
+    }
+
+    try {
+        // 1. Validate student, course, and session
+        const student = await studentModel.findById(studentId);
+        if (!student) return res.status(404).json({ message: 'Student not found' });
+        if (!student.faceDescriptor || student.faceDescriptor.length === 0) {
+            return res.status(400).json({ message: 'Student has not registered a face for verification.' });
+        }
+
+        const course = await courseModel.findOne({ _id: courseId, lecturer: lecturerId });
+        if (!course) return res.status(404).json({ message: 'Course not found or not assigned to you' });
+
+        const session = await attendanceSessionModel.findOne({ _id: sessionId, course: courseId, isActive: true });
+        if (!session) return res.status(404).json({ message: 'Active session not found for this course' });
+
+        // 2. Prevent duplicate attendance
+        const alreadyMarked = await attendanceModel.findOne({ student: studentId, session: sessionId });
+        if (alreadyMarked) {
+            return res.status(400).json({ message: 'Attendance already marked for this student in this session' });
+        }
+
+        // 3. Perform Face Verification
+        const verificationImg = await image(req.file.buffer);
+        const result = await faceapi.detectSingleFace(verificationImg).withFaceLandmarks().withFaceDescriptor();
+
+        if (!result) {
+            return res.status(400).json({ message: 'No face detected in the verification image.' });
+        }
+
+        const storedDescriptor = new Float32Array(student.faceDescriptor);
+        const faceMatcher = new faceapi.FaceMatcher([storedDescriptor]);
+        const bestMatch = faceMatcher.findBestMatch(result.descriptor);
+
+        // A distance threshold of 0.6 is standard. Lower is more strict.
+        if (bestMatch.label === 'unknown' || bestMatch.distance > 0.5) {
+             return res.status(401).json({ message: `Face verification failed. Match distance: ${bestMatch.distance.toFixed(2)}` });
+        }
+
+        // 4. Mark attendance
+        const attendance = new attendanceModel({
+            student: studentId,
+            course: courseId,
+            session: sessionId,
+            markedBy: lecturerId
+        });
+        await attendance.save();
+
+        return res.status(201).json({ message: 'Attendance marked successfully via face verification.', attendance });
+    } catch (error) {
+        console.error('Error during facial attendance marking:', error);
         return res.status(500).json({ message: 'Server error' });
     }
 };

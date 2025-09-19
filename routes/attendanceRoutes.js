@@ -1,9 +1,14 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { validateEnrollment, markAttendance, closeAttendanceSession, viewAttendanceHistory, downloadAttendanceHistory } from '../controllers/attendanceControllers.js';
+import multer from 'multer';
+import { startAttendanceSession, validateEnrollment, markAttendance, markAttendanceWithFace, closeAttendanceSession, viewAttendanceHistory, downloadAttendanceHistory } from '../controllers/attendanceControllers.js';
 import { isLecturer } from '../middleware/lecturerAuth.js';
 
 const router = express.Router();
+
+// Multer setup for memory storage (to process with face-api.js)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -14,26 +19,18 @@ const limiter = rateLimit({
 // Apply to all attendance routes
 router.use(limiter);
 
+router.post('/start-session', isLecturer, startAttendanceSession);
 router.post('/validate-enrollment', isLecturer, validateEnrollment);
 router.post('/mark', isLecturer, markAttendance);
+
+// New route for marking attendance with face verification
+router.post('/mark-with-face', isLecturer, upload.single('verificationImage'), markAttendanceWithFace);
+
 router.post('/close-session', isLecturer, closeAttendanceSession);
 
 // View attendance history (JSON)
 router.get('/history/:courseId', isLecturer, viewAttendanceHistory);
-
 // Download attendance history (CSV)
 router.get('/history/:courseId/download', isLecturer, downloadAttendanceHistory);
-
-// Example for course ownership
-const course = await courseModel.findOne({ _id: courseId, lecturer: req.user.id });
-if (!course) {
-  return res.status(404).json({ message: 'Course not found or not assigned to you' });
-}
-
-// Example for session ownership
-const session = await attendanceSessionModel.findOne({ _id: sessionId, lecturer: req.user.id });
-if (!session) {
-  return res.status(404).json({ message: 'Session not found or not assigned to you' });
-}
 
 export default router;

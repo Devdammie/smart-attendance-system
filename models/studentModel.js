@@ -17,7 +17,12 @@ const studentSchema = new mongoose.Schema({
     qrCode: {
       type: String,
       default: ''
-    }
+    },
+     faceDescriptor: {
+      type: [Number],
+      required: false,
+      default: []
+    },
    // verifyotp:{type: Number, default: ''},
    // verufyotpExpireAt:{type: Number, default: ''},
     //isAccountVerified:{type: Boolean, default: false},
