@@ -38,8 +38,8 @@ export const isLecturer = async (req, res, next) => {
       return res.status(403).json({ error: "Access forbidden: Not a lecturer" });
     }
 
-    // Store student ID on the request object for use in subsequent middleware or routes
-    //req.lecturerId = lecturerId; 
+    // Store user on the request object for use in subsequent middleware or routes
+    req.user = user;
 
     next(); // Continue to the next middleware or route handler
   } catch (error) {
