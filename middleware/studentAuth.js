@@ -37,8 +37,8 @@ export const isStudent = async (req, res, next) => {
       return res.status(403).json({ error: "Access forbidden: Not a student" });
     }
 
-    // Store student ID on the request object for use in subsequent middleware or routes
-    // req.studentId = student_id;
+    // Store user on the request object for use in subsequent middleware or routes
+    req.user = user;
 
     next(); // Continue to the next middleware or route handler
   } catch (error) {
@@ -46,4 +46,3 @@ export const isStudent = async (req, res, next) => {
     return res.status(401).json({ error: "Session token expired or invalid!" });
   }
 };
-
